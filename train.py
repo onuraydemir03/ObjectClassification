@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 from torchvision import models
 from tqdm import tqdm
 
-from dataset import DsData
+from dataloader import DsData
 import wandb
 
 

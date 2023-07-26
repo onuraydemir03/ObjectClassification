@@ -1,3 +1,7 @@
+from random import random
+
+import cv2
+import numpy as np
 import torch.utils.data
 from torch import nn, Module
 from torch.optim import Optimizer
@@ -6,6 +10,7 @@ from torchvision import models
 from tqdm import tqdm
 import wandb
 import os.path as op
+
 
 class Model:
 
@@ -61,7 +66,7 @@ class Model:
         training_loss, correct_preds, counter = 0, 0, 0
         for idx, data in enumerate(dataloader):
             counter += 1
-            images, labels = data
+            images, labels, image_paths = data
             images = images.to(self.device)
             labels = labels.to(self.device)
             optimizer.zero_grad()
@@ -85,7 +90,7 @@ class Model:
         with torch.no_grad():
             for idx, data in enumerate(dataloader):
                 counter += 1
-                images, labels = data
+                images, labels, image_paths = data
                 images = images.to(self.device)
                 labels = labels.to(self.device)
                 outputs = self.model(images)
@@ -100,4 +105,55 @@ class Model:
         epoch_acc = 100 * (correct_preds / len(dataloader.dataset))
 
         return epoch_acc, epoch_loss
+
+    def extract_features(self, dataloader: DataLoader, model_path: str, save_path: str = "FeatureVectors.pth"):
+        state_dict = torch.load(model_path, map_location=torch.device(self.device))
+        self.model.load_state_dict(state_dict)
+        feature_extractor = torch.nn.Sequential(*list(model.children())[:-1])
+        feat_vectors = {}
+        with torch.no_grad():
+            pbar = tqdm(enumerate(dataloader), total=len(dataloader))
+            for test_img_no, test_data in pbar:
+                images, labels, image_paths = test_data
+                images = images.to(self.device)
+                outputs = feature_extractor(images)
+                for image_path, feat_vector in zip(image_paths, outputs):
+                    feat_vectors[image_path] = feat_vector.flatten()
+        torch.save(feat_vectors, "FeatureVectors.pth")
+
+    def find_similars(self, save_path: str, features_path: str = "FeatureVectors.pth", number_of_tests: int = 10):
+        feature_vectors = torch.load(features_path)
+        cos = nn.CosineSimilarity()
+        image_paths, feats = list(feature_vectors.keys()), list(feature_vectors.values())
+        idxs = np.arange(len(feats))
+        random.shuffle(idxs)
+        idxs = idxs[:number_of_tests]
+        one_dim = 200
+        for test_sample_no, test_sample_idx in enumerate(idxs):
+            result_image = np.zeros((2 * one_dim, 8 * one_dim, 3), dtype=np.uint8)
+            selected_sample_img_path, selected_sample_feat = image_paths[test_sample_idx], feats[test_sample_idx]
+            scores = cos(torch.unsqueeze(selected_sample_feat, 0), torch.stack(feats))
+            most_similar_idxs = torch.argsort(scores, descending=True)[:12]
+            selected_image = cv2.imread(selected_sample_img_path)
+            selected_image = cv2.resize(selected_image, (2 * one_dim, 2 * one_dim))
+            result_image[:2 * one_dim, :2 * one_dim] = selected_image
+            for idx, similar_image_idx in enumerate(most_similar_idxs):
+                similar_image = cv2.imread(image_paths[similar_image_idx])
+                similar_image = cv2.resize(similar_image, (one_dim, one_dim))
+
+                text = '%.2f' % scores[similar_image_idx]
+                x1, y1 = 20, 20
+                (w, h), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
+                similar_image = cv2.rectangle(similar_image, (x1, y1 - 20), (x1 + w, y1), (255, 0, 255), -1)
+                similar_image = cv2.putText(similar_image, text, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                                            (255, 255, 255), 1)
+                if idx // 6 == 0:
+                    result_image[: one_dim, (2 + idx) * one_dim:(3 + idx) * one_dim] = similar_image
+                else:
+                    idx_ = idx % 6
+                    result_image[one_dim:, (2 + idx_) * one_dim:(3 + idx_) * one_dim] = similar_image
+            image_name = f"{'%03d' % test_sample_no}.jpg"
+            cv2.imwrite(op.join(save_path, image_name), result_image)
+
+
 
