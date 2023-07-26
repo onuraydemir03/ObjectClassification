@@ -34,3 +34,6 @@ Extracts features from all the image crops and saves them as a torch dict
 Finds the most similar X crops by given one test sample, creates a result image
 ~~~
 ***
+
+## Training Graphs
+[Wandb Training Graphs](TrainingReport.pdf)
