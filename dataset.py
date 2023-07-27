@@ -2,11 +2,12 @@ import glob
 import json
 import os
 import os.path as op
-from random import random
+import random
 
 import cv2
 import numpy as np
 import requests
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dataloader import DsData
@@ -14,7 +15,7 @@ from dataloader import DsData
 
 class Dataset:
     def __init__(self, json_path: str, data_dir: str = "./data"):
-        self.metadata = json.load(open(json_path, "r"))
+        self.metadata = json.load(open(json_path, "r"))[:100]
         self.data_dir = data_dir
 
         self.label_save_path = op.join(self.data_dir, "labels")
@@ -62,7 +63,7 @@ class Dataset:
         for label_file in tqdm(label_files):
             labels = json.load(open(label_file, "r"))
             image_path = label_file.replace('labels', 'images').replace('json', 'jpg')
-            sample_id = os.path.splitext(os.path.basename(image_path))[0]
+            sample_id = op.splitext(op.basename(image_path))[0]
             presaved_image_names = glob.glob(op.join(self.crop_save_path, f"{sample_id}*.jpg"))
             if len(presaved_image_names) != len(labels):
                 image = cv2.imread(image_path)
@@ -76,7 +77,7 @@ class Dataset:
                         ymax = int(ymin + label['bbox'][0]['height'])
                         crop = self.crop_image(image=image, xmin=xmin, ymin=ymin, xmax=xmax, ymax=ymax)
                         try:
-                            cv2.imwrite(os.path.join("data", "crops", f"{sample_id}_{crop_no}.jpg"), crop)
+                            cv2.imwrite(op.join(self.crop_save_path, f"{sample_id}_{crop_no}.jpg"), crop)
                             label_dict[f"{sample_id}_{crop_no}.jpg"] = classname
                         except Exception as exc:
                             print(f"Exception: {exc} in {image_path} , Bbox({xmin}, {ymin}, {xmax}, {ymax}).")
@@ -114,11 +115,14 @@ class Dataset:
         json.dump(train_labels, open(self.train_crop_label_save_path, "w"), indent=1)
         json.dump(val_labels, open(self.val_crop_label_save_path, "w"), indent=1)
 
-    def create_train_dataloader(self) -> DsData:
-        return DsData(labels_path=self.train_crop_label_save_path)
+    def create_train_dataloader(self, batch_size: int = 128, shuffle_data: bool = True, num_workers: int = 12) -> DataLoader:
+        dataset = DsData(labels_path=self.train_crop_label_save_path)
+        return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle_data, num_workers=num_workers)
 
-    def create_val_dataloader(self) -> DsData:
-        return DsData(labels_path=self.val_crop_label_save_path)
+    def create_val_dataloader(self, batch_size: int = 256, shuffle_data: bool = False, num_workers: int = 12) -> DataLoader:
+        dataset = DsData(labels_path=self.val_crop_label_save_path)
+        return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle_data, num_workers=num_workers)
 
-    def create_all_dataloader(self) -> DsData:
-        return DsData(labels_path=self.all_crop_label_save_path)
+    def create_all_dataloader(self, batch_size: int = 256, shuffle_data: bool = False, num_workers: int = 12) -> DataLoader:
+        dataset = DsData(labels_path=self.all_crop_label_save_path)
+        return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle_data, num_workers=num_workers)

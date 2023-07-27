@@ -1,5 +1,5 @@
 import json
-import os
+import os.path as op
 
 import numpy as np
 from PIL import Image
@@ -21,7 +21,8 @@ class DsData(Dataset):
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             ])
-        self.labels = json.load(open(labels_path, "r"))
+        self.labels_path = labels_path
+        self.labels = json.load(open(self.labels_path, "r"))
         self.keys, self.values = list(self.labels.keys()), list(self.labels.values())
         self.classes = list(set(self.values))
         self.classes.sort()
@@ -35,7 +36,7 @@ class DsData(Dataset):
     def __getitem__(self, item):
         label = np.zeros(len(self.classes), dtype=int)
         label[self.label_dict[self.values[item]]] = 1
-        image_path = os.path.join("data", "crops", self.keys[item])
+        image_path = op.join(op.dirname(self.labels_path), "crops", self.keys[item])
         image = Image.open(image_path)
         if self.transform:
             image = self.transform(image)

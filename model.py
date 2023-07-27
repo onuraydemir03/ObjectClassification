@@ -1,9 +1,10 @@
-from random import random
+import os
+import random
 
 import cv2
 import numpy as np
 import torch.utils.data
-from torch import nn, Module
+from torch import nn
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torchvision import models
@@ -14,9 +15,9 @@ import os.path as op
 
 class Model:
 
-    def __init__(self, scratch: bool = False, num_classes: int = 9, device: str = "cuda"):
+    def __init__(self, scratch: bool = False, num_classes: int = 9):
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.scratch = scratch
-        self.device = device
         self.num_classes = num_classes
         self.model = models.resnet18(pretrained=True)
         if not self.scratch:
@@ -28,34 +29,35 @@ class Model:
 
     def train(self,
               num_epochs: int,
-              dataloader: DataLoader,
+              train_dataloader: DataLoader,
+              val_dataloader: DataLoader,
               optimizer: Optimizer,
-              criterion: Module,
+              criterion,
               output_path: str):
 
-        wandb.init(
-            project="CaseDs",
-            config={
-                "model": "Resnet18",
-                "optimizer": optimizer.__class__.__name__,
-                "dataset": "custom",
-                "from-scratch": self.scratch,
-                "epochs": num_epochs
-            }
-        )
-
+        # wandb.init(
+        #     project="CaseDs",
+        #     config={
+        #         "model": "Resnet18",
+        #         "optimizer": optimizer.__class__.__name__,
+        #         "dataset": "custom",
+        #         "from-scratch": self.scratch,
+        #         "epochs": num_epochs
+        #     }
+        # )
+        os.makedirs(output_path, exist_ok=True)
         pbar = tqdm(range(num_epochs), total=num_epochs)
         for epoch in pbar:
-            train_acc, train_loss = self._train_iter(dataloader=dataloader,
+            train_acc, train_loss = self._train_iter(dataloader=train_dataloader,
                                                      optimizer=optimizer,
                                                      criterion=criterion)
-            val_acc, val_loss = self._validate_iter(dataloader=dataloader,
+            val_acc, val_loss = self._validate_iter(dataloader=val_dataloader,
                                                     criterion=criterion)
-            pbar.set_description_str(f"Epoch {epoch + 1}")
+            pbar.set_description_str(f"Scratch({self.scratch}), Optimizer({optimizer.__class__.__name__}), Epoch{epoch + 1}")
             pbar.set_postfix_str(f"Train / Val Acc: ({'%.02f' % train_acc}/{'%.02f' % val_acc}) & "
                                  f"Train / Val Loss: ({'%.02f' % train_loss}/{'%.02f' % val_loss})")
 
-            wandb.log({"train_acc": train_acc, "train_loss": train_loss, "val_acc": val_acc, "val_loss": val_loss})
+            # wandb.log({"train_acc": train_acc, "train_loss": train_loss, "val_acc": val_acc, "val_loss": val_loss})
 
             model_name = f"ResNet18_E{epoch + 1}_VA_{'%.01f' % val_acc}_TA_{'%.01f' % train_acc}"
             torch.save(self.model.state_dict(), op.join(output_path, f'{model_name}.pth'))
@@ -109,7 +111,7 @@ class Model:
     def extract_features(self, dataloader: DataLoader, model_path: str, save_path: str = "FeatureVectors.pth"):
         state_dict = torch.load(model_path, map_location=torch.device(self.device))
         self.model.load_state_dict(state_dict)
-        feature_extractor = torch.nn.Sequential(*list(model.children())[:-1])
+        feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-1])
         feat_vectors = {}
         with torch.no_grad():
             pbar = tqdm(enumerate(dataloader), total=len(dataloader))
