@@ -1,39 +1,39 @@
 # Training a ResNet18 on Custom Dataset
 
-## Steps
+## Installation
 ***
-This project made by steps
-* Step 1 - Downloading images
+* In order to install this project you need to install required packages first.
 ~~~
-- download_data.py 
-This script downloads the crops & saves them in usable format
+pip3 install -r requirements.txt
 ~~~
-* Step 2 - Crop Detections
+## Run
+* In order to run the project, it will download the data, trained the network, extract the features, saves the similarity matching images
 ~~~
-- crop_images.py
-This script crops the images by detection bboxes
-~~~
-* Step 3 - Split Dataset (Train & Val)
-~~~
-- split_dataset.py
-This script splits the dataset into multiple sets
-~~~
-* Step 4 - Train the Network
-~~~
-- train.py
-Trains the ResNet18 network
-~~~
-* Step 5 - Extract Features
-~~~
-- feature_extractor.py
-Extracts features from all the image crops and saves them as a torch dict
-~~~
-* Step 5 - Get the most similar X samples
-~~~
-- find_similars.py
-Finds the most similar X crops by given one test sample, creates a result image
+python3 main.py
 ~~~
 ***
+
+## Results
+### 1
+![Alt text](./Results/000.jpg?raw=true "1. Result")
+### 2
+![Alt text](./Results/001.jpg?raw=true "2. Result")
+### 3
+![Alt text](./Results/002.jpg?raw=true "3. Result")
+### 4
+![Alt text](./Results/003.jpg?raw=true "4. Result")
+### 5
+![Alt text](./Results/004.jpg?raw=true "5. Result")
+### 6
+![Alt text](./Results/005.jpg?raw=true "6. Result")
+### 7
+![Alt text](./Results/006.jpg?raw=true "7. Result")
+### 8
+![Alt text](./Results/007.jpg?raw=true "8. Result")
+### 9
+![Alt text](./Results/008.jpg?raw=true "9. Result")
+### 10
+![Alt text](./Results/009.jpg?raw=true "10. Result")
 
 ## Training Graphs
 [Wandb Training Graphs](TrainingReport.pdf)

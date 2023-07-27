@@ -14,8 +14,19 @@ import os.path as op
 
 
 class Model:
-
+    """
+    Custom model class that takes ResNet18 and make processes with it
+    This class has its own functionality
+        - train
+        - feature extraction
+        - similarity matching
+    """
     def __init__(self, scratch: bool = False, num_classes: int = 9):
+        """
+        Args:
+            scratch (bool): Model creation will be made from 0 or pretrained
+            num_classes (int): Number of classes that will be classified
+        """
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.scratch = scratch
         self.num_classes = num_classes
@@ -34,17 +45,27 @@ class Model:
               optimizer: Optimizer,
               criterion,
               output_path: str):
-
-        # wandb.init(
-        #     project="CaseDs",
-        #     config={
-        #         "model": "Resnet18",
-        #         "optimizer": optimizer.__class__.__name__,
-        #         "dataset": "custom",
-        #         "from-scratch": self.scratch,
-        #         "epochs": num_epochs
-        #     }
-        # )
+        """
+        Trains the model & validates it & saves the checkpoints
+        Logs the training & val (acc, loss) into wandb
+        Args:
+            num_epochs (int): Number of epochs that the train will be made
+            train_dataloader (DataLoader): train set torch dataloader
+            val_dataloader (DataLoader): validation set torch dataloader
+            optimizer: torch optimizer
+            criterion: torch loss function
+            output_path (str): model save path
+        """
+        wandb.init(
+            project="CaseDs",
+            config={
+                "model": "Resnet18",
+                "optimizer": optimizer.__class__.__name__,
+                "dataset": "custom",
+                "from-scratch": self.scratch,
+                "epochs": num_epochs
+            }
+        )
         os.makedirs(output_path, exist_ok=True)
         pbar = tqdm(range(num_epochs), total=num_epochs)
         for epoch in pbar:
@@ -57,13 +78,23 @@ class Model:
             pbar.set_postfix_str(f"Train / Val Acc: ({'%.02f' % train_acc}/{'%.02f' % val_acc}) & "
                                  f"Train / Val Loss: ({'%.02f' % train_loss}/{'%.02f' % val_loss})")
 
-            # wandb.log({"train_acc": train_acc, "train_loss": train_loss, "val_acc": val_acc, "val_loss": val_loss})
+            wandb.log({"train_acc": train_acc, "train_loss": train_loss, "val_acc": val_acc, "val_loss": val_loss})
 
             model_name = f"ResNet18_E{epoch + 1}_VA_{'%.01f' % val_acc}_TA_{'%.01f' % train_acc}"
             torch.save(self.model.state_dict(), op.join(output_path, f'{model_name}.pth'))
         wandb.finish()
 
     def _train_iter(self, dataloader: DataLoader, optimizer: Optimizer, criterion):
+        """
+        Iterates train model one epoch
+        Args:
+            dataloader (DataLoader): train set torch dataloader
+            optimizer: torch optimizer
+            criterion: torch loss function
+        Returns:
+            epoch_acc (float): Accuracy of one epoch
+            epoch_loss (float): Loss of one epoch
+        """
         self.model.train()
         training_loss, correct_preds, counter = 0, 0, 0
         for idx, data in enumerate(dataloader):
@@ -87,6 +118,15 @@ class Model:
         return epoch_acc, epoch_loss
 
     def _validate_iter(self, dataloader: DataLoader, criterion):
+        """
+        Iterates validation model one epoch
+        Args:
+            dataloader (DataLoader): validation set torch dataloader
+            criterion: torch loss function
+        Returns:
+            epoch_acc (float): Accuracy of one epoch
+            epoch_loss (float): Loss of one epoch
+        """
         self.model.eval()
         val_loss, correct_preds, counter = 0, 0, 0
         with torch.no_grad():
@@ -109,6 +149,13 @@ class Model:
         return epoch_acc, epoch_loss
 
     def extract_features(self, dataloader: DataLoader, model_path: str, save_path: str = "FeatureVectors.pth"):
+        """
+        Extracts features of all the crops and saves them into a torch dict file
+        Args:
+            dataloader (DataLoader): all dataset torch dataloader
+            model_path (str): trained model path that will be used in order to extract features
+            save_path (str): extracted features dictionary file save path
+        """
         state_dict = torch.load(model_path, map_location=torch.device(self.device))
         self.model.load_state_dict(state_dict)
         feature_extractor = torch.nn.Sequential(*list(self.model.children())[:-1])
@@ -124,6 +171,13 @@ class Model:
         torch.save(feat_vectors, "FeatureVectors.pth")
 
     def find_similars(self, save_path: str, features_path: str = "FeatureVectors.pth", number_of_tests: int = 10):
+        """
+        Finds the similar 12 crops for number_of_tests number of test crops, saves the result grid image
+        Args:
+            save_path (str): save path of the result grid images
+            features_path (str): torch dict file path that holds the feature vectors for all crops
+            number_of_tests (int): Number of test sample that will be processed
+        """
         feature_vectors = torch.load(features_path)
         cos = nn.CosineSimilarity()
         image_paths, feats = list(feature_vectors.keys()), list(feature_vectors.values())

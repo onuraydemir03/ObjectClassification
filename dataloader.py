@@ -11,7 +11,7 @@ class DsData(Dataset):
     """
     Custom dataloader class
     Args:
-        dataset_selector (Optional [val, train, all]): Selects the loading json & images by one key
+        labels_path (str): Loading label json path, image_names are the keys of json file
     """
     def __init__(self, labels_path):
         self.transform = transforms.Compose([
